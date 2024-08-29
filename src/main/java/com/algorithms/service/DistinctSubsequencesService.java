@@ -21,8 +21,9 @@ public class DistinctSubsequencesService {
 
 	@Autowired
 	private SubsequenceRepository subsequenceRepository;
-
+	
 	public SubsequenceResponse saveSubsequence(Subsequence subsequence) {
+		logger.info("Guardar Subsecuencia");
 		Subsequence savedSubsequence = subsequenceRepository.save(subsequence);
 		return mapToDTO(savedSubsequence);
 	}
@@ -33,14 +34,17 @@ public class DistinctSubsequencesService {
 	}
 
 	public Optional<SubsequenceResponse> getSubsequenceById(Long id) {
+		logger.info("Obtener Subsecuencia por Id");
 		return subsequenceRepository.findById(id).map(this::mapToDTO);
 	}
 
 	public void deleteSubsequence(Long id) {
+		logger.info("Eliminar Subsecuencia por Id");
 		subsequenceRepository.deleteById(id);
 	}
 
 	public SubsequenceResponse updateSubsequence(Long id, Subsequence newSubsequence) {
+		logger.info("Actualizar subsecuencia");
 		Subsequence updatedSubsequence = subsequenceRepository.findById(id).map(subsequence -> {
 			subsequence.setSourceInitial(newSubsequence.getSourceInitial());
 			subsequence.setTargetFinal(newSubsequence.getTargetFinal());
@@ -63,7 +67,6 @@ public class DistinctSubsequencesService {
 		logger.info("Matriz 2D que guardará las subsecuencias distintas encontradas teniendo en cuenta el caso vacío");
 		int[][] subsequencesCount = new int[sourceLength + 1][targetLength + 1];
 		
-		
 		// Se inicializa la matriz llenando la primera columna donde j es igual a 0 ya
 		// que cualquier subsecuencia de source siempre se podrá formar
 		// la subsecuencia vacía de target siempre de una forma la cual es omitiendo los
@@ -79,13 +82,13 @@ public class DistinctSubsequencesService {
 		logger.info("Se recorre la matriz para calcular las subsecuencias");
 		IntStream.rangeClosed(1, sourceLength).forEach(i -> IntStream.rangeClosed(1, targetLength).forEach(j -> {
 
-			// Se compara si los caracteres actuales coinciden
+			// Comparo si los caracteres actuales coinciden
 			if (source.charAt(i - 1) == target.charAt(j - 1)) {
-				// Si coinciden se suman las subsecuencias formadas sin el carácter actual y con
+				// Si coinciden sumo las subsecuencias formadas sin el carácter actual y con
 				// el carácter actual
 				subsequencesCount[i][j] = subsequencesCount[i - 1][j - 1] + subsequencesCount[i - 1][j];
 			} else {
-				// Si no coinciden se toma el valor de la fila anterior
+				// Si no coinciden tomo el valor de la fila anterior
 				subsequencesCount[i][j] = subsequencesCount[i - 1][j];
 			}
 
@@ -94,7 +97,7 @@ public class DistinctSubsequencesService {
 			printMatrix(subsequencesCount, sourceLength, targetLength);
 		}));
 
-		// Retornamos el número total de subsecuencias distintas
+		// Retorno el número total de subsecuencias distintas
 		logger.info("Subsecuencias encontradas: " + subsequencesCount[sourceLength][targetLength]);
 
 		return subsequencesCount[sourceLength][targetLength];
