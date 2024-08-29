@@ -1,6 +1,8 @@
 package com.algorithms.controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,8 @@ import com.algorithms.dto.SubsequenceRequest;
 import com.algorithms.dto.SubsequenceResponse;
 import com.algorithms.model.Subsequence;
 import com.algorithms.service.DistinctSubsequencesService;
+import com.algorithms.util.exception.ErrorResponse;
+import com.algorithms.util.exception.InvalidInputException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,69 +39,102 @@ public class DistinctSubsequencesController {
 	private DistinctSubsequencesService subsequenceService;
 
 	@PostMapping("/distinct-subsequences")
-	@Operation(summary = "Calcular subsecuencias distintas", description = "Calcula el número de subsecuencias distintas entre la fuente y el objetivo")
-	@ApiResponse(responseCode = "201", description = "Subsecuencia creada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
-	@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content)
-	public SubsequenceResponse calculateDistinctSubsequences(@RequestBody SubsequenceRequest request) {
-	    int result = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
+    @Operation(summary = "Calcular subsecuencias distintas", description = "Calcula el número de subsecuencias distintas entre la fuente y el objetivo")
+    @ApiResponse(responseCode = "201", description = "Subsecuencia creada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content)
+    public ResponseEntity<SubsequenceResponse> calculateDistinctSubsequences(@RequestBody SubsequenceRequest request) {
+        int result = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
+        Subsequence subsequence = new Subsequence(request.getSource(), request.getTarget(), result);
+        SubsequenceResponse savedSubsequence = subsequenceService.saveSubsequence(subsequence);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedSubsequence);
+    }
 
-	    Subsequence subsequence = new Subsequence(request.getSource(), request.getTarget(), result);
-	    SubsequenceResponse savedSubsequence = subsequenceService.saveSubsequence(subsequence);
+    @GetMapping
+    @Operation(summary = "Obtener todas las subsecuencias", description = "Retorna una lista de todas las subsecuencias")
+    @ApiResponse(responseCode = "200", description = "Lista de subsecuencias obtenida exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
+    public ResponseEntity<List<SubsequenceResponse>> getAllSubsequences() {
+        List<SubsequenceResponse> subsequences = subsequenceService.getAllSubsequences();
+        return ResponseEntity.ok(subsequences);
+    }
 
-	    return new SubsequenceResponse(savedSubsequence.getId(), savedSubsequence.getSourceInitial(),
-	            savedSubsequence.getTargetFinal(), savedSubsequence.getNumberSubsequence(),
-	            savedSubsequence.getDateCreate());
-	}
+    @GetMapping("/{id}")
+    @Operation(summary = "Obtener subsecuencia por ID", description = "Retorna una subsecuencia específica por su ID")
+    @ApiResponse(responseCode = "200", description = "Subsecuencia obtenida exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Subsecuencia no encontrada", content = @Content)
+    public ResponseEntity<SubsequenceResponse> getSubsequenceById(@PathVariable Long id) {
+        SubsequenceResponse subsequence = subsequenceService.getSubsequenceById(id);
+        return ResponseEntity.ok(subsequence);
+    }
 
+    @PostMapping
+    @Operation(summary = "Crear subsecuencia", description = "Crea una nueva subsecuencia")
+    @ApiResponse(responseCode = "201", description = "Subsecuencia creada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Subsecuencia igual ya existe", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    public ResponseEntity<?> createSubsequence(@RequestBody SubsequenceRequest request) {
+        int calculatedResult = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
+        
+        if (calculatedResult != request.getNumberSubsequence()) {
+            ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "El número de subsecuencias proporcionado no coincide con el cálculo real. Calculado: " + calculatedResult + ", Proporcionado: " + request.getNumberSubsequence()
+            );
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+        
+        if (subsequenceService.existsSimilarSubsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence())) {
+            ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "Ya existe una subsecuencia igual en la base de datos."
+            );
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+        }
+        
+        Subsequence subsequence = new Subsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence());
+        SubsequenceResponse createdSubsequence = subsequenceService.saveSubsequence(subsequence);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdSubsequence);
+    }
 
-	@GetMapping
-	@Operation(summary = "Obtener todas las subsecuencias", description = "Retorna una lista de todas las subsecuencias")
-	@ApiResponse(responseCode = "200", description = "Lista de subsecuencias obtenida exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
-	@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content)
-	public List<SubsequenceResponse> getAllSubsequences() {
-	    return subsequenceService.getAllSubsequences();
-	}
+    @PutMapping("/{id}")
+    @Operation(summary = "Actualizar subsecuencia", description = "Actualiza una subsecuencia existente por su ID")
+    @ApiResponse(responseCode = "200", description = "Subsecuencia actualizada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Subsecuencia no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Subsecuencia igual ya existe", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    public ResponseEntity<?> updateSubsequence(@PathVariable Long id, @RequestBody SubsequenceRequest request) {
+        int calculatedResult = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
+        
+        if (calculatedResult != request.getNumberSubsequence()) {
+            ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "El número de subsecuencias proporcionado no coincide con el cálculo real. Calculado: " + calculatedResult + ", Proporcionado: " + request.getNumberSubsequence()
+            );
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+        
+        if (subsequenceService.existsSimilarSubsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence())) {
+            ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "Ya existe una subsecuencia igual en la base de datos."
+            );
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+        }
+        
+        Subsequence subsequence = new Subsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence());
+        subsequence.setId(id);
+        SubsequenceResponse updatedSubsequence = subsequenceService.updateSubsequence(id, subsequence);
+        return ResponseEntity.ok(updatedSubsequence);
+    }
 
-
-	@GetMapping("/{id}")
-	@Operation(summary = "Obtener subsecuencia por ID", description = "Retorna una subsecuencia específica por su ID")
-	@ApiResponse(responseCode = "200", description = "Subsecuencia obtenida exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
-	@ApiResponse(responseCode = "404", description = "Subsecuencia no encontrada", content = @Content)
-	public ResponseEntity<SubsequenceResponse> getSubsequenceById(@PathVariable Long id) {
-	    Optional<SubsequenceResponse> subsequence = subsequenceService.getSubsequenceById(id);
-	    return subsequence.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-	}
-
-
-	@PostMapping
-	@Operation(summary = "Crear subsecuencia", description = "Crea una nueva subsecuencia")
-	@ApiResponse(responseCode = "201", description = "Subsecuencia creada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
-	@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content)
-	public ResponseEntity<SubsequenceResponse> createSubsequence(@RequestBody Subsequence subsequence) {
-	    SubsequenceResponse createdSubsequence = subsequenceService.saveSubsequence(subsequence);
-	    return ResponseEntity.status(HttpStatus.CREATED).body(createdSubsequence);
-	}
-
-
-	@PutMapping("/{id}")
-	@Operation(summary = "Actualizar subsecuencia", description = "Actualiza una subsecuencia existente por su ID")
-	@ApiResponse(responseCode = "200", description = "Subsecuencia actualizada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
-	@ApiResponse(responseCode = "404", description = "Subsecuencia no encontrada", content = @Content)
-	@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content)
-	public ResponseEntity<SubsequenceResponse> updateSubsequence(@PathVariable Long id, @RequestBody Subsequence subsequence) {
-	    SubsequenceResponse updatedSubsequence = subsequenceService.updateSubsequence(id, subsequence);
-	    return ResponseEntity.ok(updatedSubsequence);
-	}
-
-
-	@DeleteMapping("/{id}")
-	@Operation(summary = "Eliminar subsecuencia", description = "Elimina una subsecuencia por su ID")
-	@ApiResponse(responseCode = "204", description = "Subsecuencia eliminada exitosamente")
-	@ApiResponse(responseCode = "404", description = "Subsecuencia no encontrada", content = @Content)
-	public ResponseEntity<Void> deleteSubsequence(@PathVariable Long id) {
-	    subsequenceService.deleteSubsequence(id);
-	    return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
-	}
-
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar subsecuencia", description = "Elimina una subsecuencia por su ID")
+    @ApiResponse(responseCode = "200", description = "Subsecuencia eliminada exitosamente")
+    @ApiResponse(responseCode = "404", description = "Subsecuencia no encontrada", content = @Content)
+    public ResponseEntity<Map<String, String>> deleteSubsequence(@PathVariable Long id) {
+        subsequenceService.deleteSubsequence(id);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Subsecuencia con ID " + id + " ha sido eliminada exitosamente");
+        return ResponseEntity.ok(response);
+    }
 	
 }

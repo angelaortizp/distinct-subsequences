@@ -1,7 +1,6 @@
 package com.algorithms.service;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -13,65 +12,103 @@ import org.springframework.stereotype.Service;
 import com.algorithms.dto.SubsequenceResponse;
 import com.algorithms.model.Subsequence;
 import com.algorithms.repository.SubsequenceRepository;
+import com.algorithms.util.exception.InvalidInputException;
+import com.algorithms.util.exception.SubsequenceNotFoundException;
+import com.algorithms.util.exception.SubsequenceProcessingException;
 
 @Service
 public class DistinctSubsequencesService {
-	
+
 	private static final Logger logger = LoggerFactory.getLogger(DistinctSubsequencesService.class);
 
 	@Autowired
 	private SubsequenceRepository subsequenceRepository;
-	
+
 	public SubsequenceResponse saveSubsequence(Subsequence subsequence) {
 		logger.info("Guardar Subsecuencia");
-		Subsequence savedSubsequence = subsequenceRepository.save(subsequence);
-		return mapToDTO(savedSubsequence);
+		try {
+			Subsequence savedSubsequence = subsequenceRepository.save(subsequence);
+			return mapToDTO(savedSubsequence);
+		} catch (Exception e) {
+			logger.error("Error al guardar la subsecuencia", e);
+			throw new SubsequenceProcessingException("Error al guardar la subsecuencia: " + e.getMessage());
+		}
 	}
 
 	public List<SubsequenceResponse> getAllSubsequences() {
 		logger.info("Obteniendo todas las subsecuencias");
-		return subsequenceRepository.findAll().stream().map(this::mapToDTO).collect(Collectors.toList());
+		try {
+			return subsequenceRepository.findAll().stream().map(this::mapToDTO).collect(Collectors.toList());
+		} catch (Exception e) {
+			logger.error("Error al obtener todas las subsecuencias", e);
+			throw new SubsequenceProcessingException("Error al obtener todas las subsecuencias: " + e.getMessage());
+		}
 	}
 
-	public Optional<SubsequenceResponse> getSubsequenceById(Long id) {
+	public SubsequenceResponse getSubsequenceById(Long id) {
 		logger.info("Obtener Subsecuencia por Id");
-		return subsequenceRepository.findById(id).map(this::mapToDTO);
+		return subsequenceRepository.findById(id).map(this::mapToDTO)
+				.orElseThrow(() -> new SubsequenceNotFoundException("Subsecuencia no encontrada con id: " + id));
 	}
 
 	public void deleteSubsequence(Long id) {
 		logger.info("Eliminar Subsecuencia por Id");
-		subsequenceRepository.deleteById(id);
+		try {
+			if (!subsequenceRepository.existsById(id)) {
+				throw new SubsequenceNotFoundException("Subsecuencia no encontrada con id: " + id);
+			}
+			subsequenceRepository.deleteById(id);
+		} catch (SubsequenceNotFoundException e) {
+			throw e;
+		} catch (Exception e) {
+			logger.error("Error al eliminar la subsecuencia", e);
+			throw new SubsequenceProcessingException("Error al eliminar la subsecuencia: " + e.getMessage());
+		}
 	}
 
 	public SubsequenceResponse updateSubsequence(Long id, Subsequence newSubsequence) {
 		logger.info("Actualizar subsecuencia");
-		Subsequence updatedSubsequence = subsequenceRepository.findById(id).map(subsequence -> {
-			subsequence.setSourceInitial(newSubsequence.getSourceInitial());
-			subsequence.setTargetFinal(newSubsequence.getTargetFinal());
-			subsequence.setNumberSubsequence(newSubsequence.getNumberSubsequence());
-			return subsequenceRepository.save(subsequence);
-		}).orElseGet(() -> {
-			newSubsequence.setId(id);
-			return subsequenceRepository.save(newSubsequence);
-		});
+		try {
+			Subsequence updatedSubsequence = subsequenceRepository.findById(id).map(subsequence -> {
+				subsequence.setSourceInitial(newSubsequence.getSourceInitial());
+				subsequence.setTargetFinal(newSubsequence.getTargetFinal());
+				subsequence.setNumberSubsequence(newSubsequence.getNumberSubsequence());
+				return subsequenceRepository.save(subsequence);
+			}).orElseThrow(() -> new SubsequenceNotFoundException("Subsecuencia no encontrada con id: " + id));
 
-		return mapToDTO(updatedSubsequence);
+			return mapToDTO(updatedSubsequence);
+		} catch (SubsequenceNotFoundException e) {
+			throw e;
+		} catch (Exception e) {
+			logger.error("Error al actualizar la subsecuencia", e);
+			throw new SubsequenceProcessingException("Error al actualizar la subsecuencia: " + e.getMessage());
+		}
 	}
 
 	public int calculateDistinctSubsequences(String source, String target) {
+		
+		logger.info("Validación restricción de longitud");
+		if (source.length() < 1 || source.length() > 1000 || target.length() < 1 || target.length() > 1000) {
+	        throw new InvalidInputException("La longitud de los textos deben estar entre 1 y 1000 caracteres.");
+	    }
+		
+		logger.info("Validación alfabeto en inglés");
+		 if (!source.matches("[a-zA-Z]+") || !target.matches("[a-zA-Z]+")) {
+		        throw new InvalidInputException("Los textos deben contener solo letras del alfabeto inglés.");
+	    }
 
 		logger.info("Longitud de las cadenas de entrada");
 		int sourceLength = source.length();
 		int targetLength = target.length();
-	
+
 		logger.info("Matriz 2D que guardará las subsecuencias distintas encontradas teniendo en cuenta el caso vacío");
 		int[][] subsequencesCount = new int[sourceLength + 1][targetLength + 1];
-		
+
 		// Se inicializa la matriz llenando la primera columna donde j es igual a 0 ya
 		// que cualquier subsecuencia de source siempre se podrá formar
 		// la subsecuencia vacía de target siempre de una forma la cual es omitiendo los
 		// caracteres de source
-		
+
 		logger.info("Se inicializa la matriz llenando la base");
 		IntStream.rangeClosed(0, sourceLength).forEach(i -> {
 			subsequencesCount[i][0] = 1;
@@ -102,6 +139,10 @@ public class DistinctSubsequencesService {
 
 		return subsequencesCount[sourceLength][targetLength];
 	}
+	
+	public boolean existsSimilarSubsequence(String source, String target, int numberSubsequence) {
+        return subsequenceRepository.existsBySourceInitialAndTargetFinalAndNumberSubsequence(source, target, numberSubsequence);
+    }
 
 	private SubsequenceResponse mapToDTO(Subsequence subsequence) {
 		return new SubsequenceResponse(subsequence.getId(), subsequence.getSourceInitial(),
