@@ -1,4 +1,4 @@
-package com.algorithms.distinctsubsequences.dto;
+package com.algorithms.dto;
 
 public class SubsequenceRequest {
 
