@@ -144,9 +144,14 @@ public class DistinctSubsequencesService {
         return subsequenceRepository.existsBySourceInitialAndTargetFinalAndNumberSubsequence(source, target, numberSubsequence);
     }
 
-	private SubsequenceResponse mapToDTO(Subsequence subsequence) {
-		return new SubsequenceResponse(subsequence.getId(), subsequence.getSourceInitial(),
-				subsequence.getTargetFinal(), subsequence.getNumberSubsequence(), subsequence.getDateCreate());
+	public SubsequenceResponse mapToDTO(Subsequence subsequence) {
+	    return new SubsequenceResponse(
+	        subsequence.getId(),
+	        subsequence.getSourceInitial(),
+	        subsequence.getTargetFinal(),
+	        subsequence.getNumberSubsequence(),
+	        subsequence.getDateCreate()
+	    );
 	}
 
 	private void printMatrix(int[][] matrix, int rows, int cols) {
