@@ -23,6 +23,7 @@ import com.algorithms.model.Subsequence;
 import com.algorithms.service.DistinctSubsequencesService;
 import com.algorithms.util.exception.ErrorResponse;
 import com.algorithms.util.exception.InvalidInputException;
+import com.algorithms.util.exception.SubsequenceProcessingException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,15 +40,34 @@ public class DistinctSubsequencesController {
 	private DistinctSubsequencesService subsequenceService;
 
 	@PostMapping("/distinct-subsequences")
-    @Operation(summary = "Calcular subsecuencias distintas", description = "Calcula el número de subsecuencias distintas entre la fuente y el objetivo")
-    @ApiResponse(responseCode = "201", description = "Subsecuencia creada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
-    @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content)
-    public ResponseEntity<SubsequenceResponse> calculateDistinctSubsequences(@RequestBody SubsequenceRequest request) {
-        int result = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
-        Subsequence subsequence = new Subsequence(request.getSource(), request.getTarget(), result);
-        SubsequenceResponse savedSubsequence = subsequenceService.saveSubsequence(subsequence);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedSubsequence);
-    }
+	@Operation(summary = "Calcular subsecuencias distintas", description = "Calcula el número de subsecuencias distintas entre la fuente y el objetivo")
+	@ApiResponse(responseCode = "201", description = "Subsecuencia creada exitosamente", content = @Content(schema = @Schema(implementation = SubsequenceResponse.class)))
+	@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+	@ApiResponse(responseCode = "409", description = "Subsecuencia igual ya existe", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+	public ResponseEntity<?> calculateDistinctSubsequences(@RequestBody SubsequenceRequest request) {
+	    try {
+	        int result = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
+	        
+	        if (subsequenceService.existsSimilarSubsequence(request.getSource(), request.getTarget(), result)) {
+	            ErrorResponse errorResponse = new ErrorResponse(
+	                HttpStatus.CONFLICT.value(),
+	                "Ya existe una subsecuencia igual en la base de datos."
+	            );
+	            return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+	        }
+	        
+	        SubsequenceResponse savedSubsequence = subsequenceService.saveSubsequence(
+	            request.getSource(), request.getTarget(), result
+	        );
+	        return ResponseEntity.status(HttpStatus.CREATED).body(savedSubsequence);
+	    } catch (InvalidInputException e) {
+	        ErrorResponse errorResponse = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), e.getMessage());
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+	    } catch (SubsequenceProcessingException e) {
+	        ErrorResponse errorResponse = new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage());
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+	    }
+	}
 
     @GetMapping
     @Operation(summary = "Obtener todas las subsecuencias", description = "Retorna una lista de todas las subsecuencias")
@@ -72,28 +92,38 @@ public class DistinctSubsequencesController {
     @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "Subsecuencia igual ya existe", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<?> createSubsequence(@RequestBody SubsequenceRequest request) {
-        int calculatedResult = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
-        
-        if (calculatedResult != request.getNumberSubsequence()) {
-            ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                "El número de subsecuencias proporcionado no coincide con el cálculo real. Calculado: " + calculatedResult + ", Proporcionado: " + request.getNumberSubsequence()
+        try {
+            int calculatedResult = subsequenceService.calculateDistinctSubsequences(request.getSource(), request.getTarget());
+
+            if (calculatedResult != request.getNumberSubsequence()) {
+                ErrorResponse errorResponse = new ErrorResponse(
+                    HttpStatus.BAD_REQUEST.value(),
+                    "El número de subsecuencias proporcionado no coincide con el cálculo real. Calculado: " + calculatedResult + ", Proporcionado: " + request.getNumberSubsequence()
+                );
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            }
+
+            if (subsequenceService.existsSimilarSubsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence())) {
+                ErrorResponse errorResponse = new ErrorResponse(
+                    HttpStatus.CONFLICT.value(),
+                    "Ya existe una subsecuencia igual en la base de datos."
+                );
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+            }
+
+            SubsequenceResponse createdSubsequence = subsequenceService.saveSubsequence(
+                request.getSource(), request.getTarget(), request.getNumberSubsequence()
             );
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdSubsequence);
+        } catch (InvalidInputException e) {
+            ErrorResponse errorResponse = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (SubsequenceProcessingException e) {
+            ErrorResponse errorResponse = new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
-        
-        if (subsequenceService.existsSimilarSubsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence())) {
-            ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.CONFLICT.value(),
-                "Ya existe una subsecuencia igual en la base de datos."
-            );
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
-        }
-        
-        Subsequence subsequence = new Subsequence(request.getSource(), request.getTarget(), request.getNumberSubsequence());
-        SubsequenceResponse createdSubsequence = subsequenceService.saveSubsequence(subsequence);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdSubsequence);
     }
+    
 
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar subsecuencia", description = "Actualiza una subsecuencia existente por su ID")

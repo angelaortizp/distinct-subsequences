@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -34,18 +36,26 @@ class DistinctSubsequencesControllerTests {
 
 	@Test
 	void createSubsequence_ValidInput_ReturnsCreated() {
-		SubsequenceRequest request = new SubsequenceRequest("abcabc", "abc", 7);
-		SubsequenceResponse response = new SubsequenceResponse(1L, "abcabc", "abc", 7, null);
+	   
+	    SubsequenceRequest request = new SubsequenceRequest("abcabc", "abc", 7);
+	    SubsequenceResponse response = new SubsequenceResponse(1L, "abcabc", "abc", 7, LocalDateTime.now());
 
-		when(subsequenceService.calculateDistinctSubsequences(anyString(), anyString())).thenReturn(7);
-		when(subsequenceService.saveSubsequence(any(Subsequence.class))).thenReturn(response);
-		when(subsequenceService.existsSimilarSubsequence(anyString(), anyString(), anyInt())).thenReturn(false);
+	    when(subsequenceService.calculateDistinctSubsequences(anyString(), anyString())).thenReturn(7);
+	    when(subsequenceService.saveSubsequence(anyString(), anyString(), anyInt())).thenReturn(response);
+	    when(subsequenceService.existsSimilarSubsequence(anyString(), anyString(), anyInt())).thenReturn(false);
 
-		ResponseEntity<?> result = controller.createSubsequence(request);
+	
+	    ResponseEntity<?> result = controller.createSubsequence(request);
 
-		assertEquals(HttpStatus.CREATED, result.getStatusCode());
-		assertTrue(result.getBody() instanceof SubsequenceResponse);
-		assertEquals(response, result.getBody());
+
+	    assertEquals(HttpStatus.CREATED, result.getStatusCode());
+	    assertTrue(result.getBody() instanceof SubsequenceResponse);
+	    assertEquals(response, result.getBody());
+
+
+	    verify(subsequenceService).calculateDistinctSubsequences("abcabc", "abc");
+	    verify(subsequenceService).existsSimilarSubsequence("abcabc", "abc", 7);
+	    verify(subsequenceService).saveSubsequence("abcabc", "abc", 7);
 	}
 
 	@Test

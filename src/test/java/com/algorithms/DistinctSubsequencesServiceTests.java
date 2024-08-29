@@ -1,27 +1,35 @@
 package com.algorithms;
 
-import com.algorithms.dto.SubsequenceResponse;
-import com.algorithms.model.Subsequence;
-import com.algorithms.repository.SubsequenceRepository;
-import com.algorithms.service.DistinctSubsequencesService;
-import com.algorithms.util.exception.InvalidInputException;
-import com.algorithms.util.exception.SubsequenceNotFoundException;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import com.algorithms.dto.SubsequenceResponse;
+import com.algorithms.factory.SubsequenceFactory;
+import com.algorithms.model.Subsequence;
+import com.algorithms.repository.SubsequenceRepository;
+import com.algorithms.service.DistinctSubsequencesService;
+import com.algorithms.util.exception.InvalidInputException;
 
 class DistinctSubsequencesServiceTests {
 
 	@Mock
 	private SubsequenceRepository subsequenceRepository;
+	
+	@Mock
+	private SubsequenceFactory subsequenceFactory;
 
 	@InjectMocks
 	private DistinctSubsequencesService service;
@@ -63,27 +71,37 @@ class DistinctSubsequencesServiceTests {
 
 	@Test
 	void saveSubsequence_ValidInput_ReturnsSavedSubsequence() {
+	   
+	    Long id = 10L;
+	    LocalDateTime creationTime = LocalDateTime.now();
+	    String sourceInitial = "abcabc";
+	    String targetFinal = "abc";
+	    int numberSubsequence = 7;
 
-		Long id = 10L;
-		LocalDateTime creationTime = LocalDateTime.now();
-		Subsequence inputSubsequence = new Subsequence("abcabc", "abc", 7);
+	    Subsequence savedSubsequence = new Subsequence(sourceInitial, targetFinal, numberSubsequence);
+	    savedSubsequence.setId(id);
+	    savedSubsequence.setDateCreate(creationTime);
 
-		Subsequence savedSubsequence = new Subsequence("abcabc", "abc", 7);
-		savedSubsequence.setId(id);
-		savedSubsequence.setDateCreate(creationTime);
+	    
+	    when(subsequenceFactory.createSubsequence(sourceInitial, targetFinal, numberSubsequence))
+	        .thenReturn(new Subsequence(sourceInitial, targetFinal, numberSubsequence));
 
-		when(subsequenceRepository.save(any(Subsequence.class))).thenReturn(savedSubsequence);
+	    when(subsequenceRepository.save(any(Subsequence.class))).thenReturn(savedSubsequence);
 
-		SubsequenceResponse result = service.saveSubsequence(inputSubsequence);
+	   
+	    SubsequenceResponse result = service.saveSubsequence(sourceInitial, targetFinal, numberSubsequence);
 
-		assertNotNull(result);
-		assertEquals(id, result.getId());
-		assertEquals("abcabc", result.getSourceInitial());
-		assertEquals("abc", result.getTargetFinal());
-		assertEquals(7, result.getNumberSubsequence());
-		assertEquals(creationTime, result.getDateCreate());
+	   
+	    assertNotNull(result);
+	    assertEquals(id, result.getId());
+	    assertEquals(sourceInitial, result.getSourceInitial());
+	    assertEquals(targetFinal, result.getTargetFinal());
+	    assertEquals(numberSubsequence, result.getNumberSubsequence());
+	    assertEquals(creationTime, result.getDateCreate());
 
-		verify(subsequenceRepository).save(any(Subsequence.class));
+	  
+	    verify(subsequenceFactory).createSubsequence(sourceInitial, targetFinal, numberSubsequence);
+	    verify(subsequenceRepository).save(any(Subsequence.class));
 	}
 
 	@Test
